@@ -191,3 +191,11 @@ h1 { margin: 0; color: #343A40; font-size: 24px; line-height: 1.25; font-weight:
   .form-grid { grid-template-columns: minmax(0, 1fr); }
   .modal-actions .button { flex: 1; }
 }
+
+
+/* Milestone 5: whole-card editing and API feedback. */
+.task-card-clickable { cursor: pointer; }
+.task-card-clickable:focus-visible { outline: 2px solid #04635F; outline-offset: 3px; }
+.api-error, .loading-banner { display:flex; align-items:center; gap:10px; margin:0 0 16px; padding:12px 14px; border-radius:8px; font-size:13px; }
+.api-error { color:#991b1b; background:#fef2f2; border:1px solid #fecaca; }
+.loading-banner { color:#475569; background:#f8fafc; border:1px solid #e2e8f0; }

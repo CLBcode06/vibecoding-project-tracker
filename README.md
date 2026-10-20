@@ -1,24 +1,29 @@
-# Citrus — Kanban board starter
+# Citrus — Milestone 5: CRUD modal + SQLite backend
 
-A React + Vite + Tailwind CSS starter for the Citrus vibe-coding project tracker.
+React + Vite frontend backed by an Express API and a persistent SQLite database.
 
-## Included
-- A four-column task board (Backlog, In Progress, Review, Done)
-- A task model for prompts, AI results, milestones, ownership, tags, type, priority and due dates
-- Add/edit task modal
-- Status changes through dropdowns (no drag-and-drop, per `DESIGN.md`)
-- Copy a task's prompt context to the clipboard
-- Delete confirmation
-- Local browser persistence as a temporary development adapter
+## Run locally
 
-## Run
+Install Node.js LTS, then run from this folder:
+
 ```bash
 npm install
 npm run dev
 ```
 
-## Install
-Copy these files into the root of your existing Vite + React project. If it already has a `package.json`, merge the dependencies/scripts rather than replacing unrelated configuration.
+The `dev` command starts both services:
+- Frontend: http://localhost:5173
+- API: http://localhost:3001
+- Health check: http://localhost:3001/api/health
 
-## Backend/database note
-The board currently uses `localStorage` behind `src/data/taskStore.js` so the UI works before a backend is chosen. The task model is kept separate from the UI, making it straightforward to replace the store with API calls later. Do not treat localStorage as the final multi-user persistence layer.
+The backend creates `data/citrus.sqlite` automatically and inserts four mock tasks only when the database is empty. Tasks live in SQLite, not browser localStorage, so changes survive refreshes and browser restarts. Keep the SQLite file to retain your tasks.
+
+## Included
+
+- Add button opens a modal with title, description, status, type, priority, due date, owner/assignee, milestone, tags, useful prompt and result/notes.
+- Clicking anywhere on a card opens the same modal pre-filled for editing. Enter/Space works when the card itself is focused.
+- Delete confirmation and persistent deletion.
+- Status dropdown in the modal; no drag-and-drop. Status changes on cards are persisted too.
+- Express CRUD API with basic field validation.
+
+If the page reports that it cannot connect to the API, run `npm run dev` from the project root and keep that terminal open. The API is for local single-user development; authentication and multi-user access are not implemented yet.

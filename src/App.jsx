@@ -8,7 +8,7 @@ import {
   buildPromptContext, createTask, formatDueDate, getDueState,
   TASK_PRIORITIES, TASK_STATUSES, TASK_TYPES
 } from "./data/taskModel.js";
-import { loadTasks, saveTasks } from "./data/taskStore.js";
+import { loadTasks, createTaskRequest, updateTaskRequest, deleteTaskRequest } from "./data/taskStore.js";
 
 const EMPTY_FORM = {
   title: "", description: "", status: "backlog", type: "feature",
@@ -52,15 +52,15 @@ function TaskCard({ task, onEdit, onStatusChange, onDelete, onCopy }) {
   const [showMenu, setShowMenu] = useState(false);
 
   return (
-    <article className="task-card">
+    <article className="task-card task-card-clickable" role="button" tabIndex={0} aria-label={`Edit task: ${task.title}`} onClick={() => onEdit(task)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onEdit(task); } }}>
       <div className="task-card-top">
         <TypeMark type={task.type} />
         <div className="card-menu-wrap">
-          <button className="icon-button card-menu-trigger" aria-label={`Options for ${task.title}`} onClick={() => setShowMenu(!showMenu)}>
+          <button className="icon-button card-menu-trigger" aria-label={`Options for ${task.title}`} onClick={(event) => { event.stopPropagation(); setShowMenu(!showMenu); }}>
             <ChevronDown size={16} />
           </button>
           {showMenu && (
-            <div className="card-menu">
+            <div className="card-menu" onClick={(event) => event.stopPropagation()}>
               <button onClick={() => { onEdit(task); setShowMenu(false); }}>Edit task</button>
               <button onClick={() => { onCopy(task); setShowMenu(false); }}>Copy prompt context</button>
               <button className="danger-menu-item" onClick={() => { onDelete(task); setShowMenu(false); }}>Delete task</button>
@@ -69,7 +69,7 @@ function TaskCard({ task, onEdit, onStatusChange, onDelete, onCopy }) {
         </div>
       </div>
 
-      <button className="task-title-button" onClick={() => onEdit(task)}>{task.title}</button>
+      <button className="task-title-button" onClick={(event) => { event.stopPropagation(); onEdit(task); }}>{task.title}</button>
       {task.description && <p className="task-description">{task.description}</p>}
 
       <div className="task-meta">
@@ -104,9 +104,9 @@ function TaskCard({ task, onEdit, onStatusChange, onDelete, onCopy }) {
         </div>
       )}
 
-      <label className="status-select-label">
+      <label className="status-select-label" onClick={(event) => event.stopPropagation()}>
         <span>Move to</span>
-        <select value={task.status} onChange={(event) => onStatusChange(task.id, event.target.value)} aria-label={`Change status for ${task.title}`}>
+        <select value={task.status} onClick={(event) => event.stopPropagation()} onChange={(event) => onStatusChange(task.id, event.target.value)} aria-label={`Change status for ${task.title}`}>
           {TASK_STATUSES.map((status) => <option value={status.value} key={status.value}>{status.label}</option>)}
         </select>
       </label>
@@ -191,13 +191,23 @@ function TaskModal({ initialTask, onClose, onSave }) {
               <input id="task-due" type="date" value={form.dueDate || ""} onChange={(event) => update("dueDate", event.target.value)} />
             </div>
             <div className="form-field">
-              <label htmlFor="task-owner">Owner</label>
+              <label htmlFor="task-owner">Assignee</label>
               <input id="task-owner" value={form.owner || ""} onChange={(event) => update("owner", event.target.value)} placeholder="Name (optional)" maxLength={80} />
             </div>
             <div className="form-field">
               <label htmlFor="task-milestone">Milestone</label>
               <input id="task-milestone" value={form.milestone || ""} onChange={(event) => update("milestone", event.target.value)} placeholder="e.g. M5 · Board view" maxLength={100} />
             </div>
+          </div>
+
+          <div className="form-field">
+            <label htmlFor="task-created">Created date</label>
+            <input
+              id="task-created"
+              value={initialTask?.createdAt ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(initialTask.createdAt)) : "Set automatically when saved"}
+              readOnly
+              aria-readonly="true"
+            />
           </div>
 
           <div className="form-field">
@@ -242,14 +252,22 @@ function DeleteModal({ task, onCancel, onConfirm }) {
 }
 
 export default function App() {
-  const [tasks, setTasks] = useState(() => loadTasks());
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState("");
   const [modalTask, setModalTask] = useState(undefined);
   const [deleteTask, setDeleteTask] = useState(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [toast, setToast] = useState("");
 
-  useEffect(() => { saveTasks(tasks); }, [tasks]);
+  useEffect(() => {
+    let active = true;
+    loadTasks().then((items) => { if (active) { setTasks(items); setApiError(""); } })
+      .catch((error) => { if (active) setApiError(`Cannot connect to the Citrus API. Start the app with npm run dev. (${error.message})`); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const filteredTasks = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -272,23 +290,28 @@ export default function App() {
     window.setTimeout(() => setToast(""), 2400);
   }
 
-  function saveTask(form) {
-    const now = new Date().toISOString();
-    if (modalTask && modalTask !== "new" && !modalTask._new) {
-      setTasks((current) => current.map((task) => task.id === modalTask.id
-        ? { ...task, ...form, updatedAt: now }
-        : task));
-    } else {
-      setTasks((current) => [{ ...createTask(), ...form, createdAt: now, updatedAt: now }, ...current]);
-    }
-    setModalTask(undefined);
-    showToast(modalTask && modalTask !== "new" && !modalTask._new ? "Task updated." : "Task added.");
+  async function saveTask(form) {
+    const isEditing = modalTask && modalTask !== "new" && !modalTask._new;
+    try {
+      if (isEditing) {
+        const saved = await updateTaskRequest(modalTask.id, { ...modalTask, ...form, updatedAt: new Date().toISOString() });
+        setTasks(current => current.map(task => task.id === saved.id ? saved : task));
+        showToast("Task updated.");
+      } else {
+        const saved = await createTaskRequest({ ...createTask(), ...form });
+        setTasks(current => [saved, ...current]);
+        showToast("Task added.");
+      }
+      setModalTask(undefined); setApiError("");
+    } catch (error) { setApiError(`Could not save task: ${error.message}`); }
   }
 
-  function updateStatus(id, status) {
-    setTasks((current) => current.map((task) => task.id === id
-      ? { ...task, status, updatedAt: new Date().toISOString() }
-      : task));
+  async function updateStatus(id, status) {
+    const task = tasks.find(item => item.id === id); if (!task) return;
+    try {
+      const saved = await updateTaskRequest(id, { ...task, status });
+      setTasks(current => current.map(item => item.id === id ? saved : item)); setApiError("");
+    } catch (error) { setApiError(`Could not update task status: ${error.message}`); }
   }
 
   async function copyContext(task) {
@@ -301,10 +324,12 @@ export default function App() {
     }
   }
 
-  function confirmDelete() {
-    setTasks((current) => current.filter((task) => task.id !== deleteTask.id));
-    setDeleteTask(null);
-    showToast("Task deleted.");
+  async function confirmDelete() {
+    try {
+      await deleteTaskRequest(deleteTask.id);
+      setTasks(current => current.filter(task => task.id !== deleteTask.id));
+      setDeleteTask(null); setApiError(""); showToast("Task deleted.");
+    } catch (error) { setApiError(`Could not delete task: ${error.message}`); }
   }
 
   return (
@@ -321,6 +346,8 @@ export default function App() {
       </header>
 
       <main className="main-content">
+        {apiError && <div className="api-error" role="alert"><AlertCircle size={17} /><span>{apiError}</span></div>}
+        {loading && <div className="loading-banner" role="status">Loading tasks from the Citrus database…</div>}
         <section className="page-heading">
           <div>
             <p className="eyebrow">YOUR WORKSPACE</p>
@@ -388,7 +415,7 @@ export default function App() {
 
         <footer className="page-footer">
           <span><Sparkles size={14} /> Keep useful prompts and results attached to the work.</span>
-          <span>Changes saved in this browser for now</span>
+          <span>Changes saved to the Citrus database</span>
         </footer>
       </main>
 

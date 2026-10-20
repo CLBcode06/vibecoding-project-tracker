@@ -6,7 +6,7 @@
  */
 
 export const TASK_STATUSES = [
-  { value: "backlog", label: "Backlog" },
+  { value: "backlog", label: "To Do" },
   { value: "in_progress", label: "In Progress" },
   { value: "review", label: "Review" },
   { value: "done", label: "Done" },
