@@ -12,9 +12,7 @@ import { loadTasks, createTaskRequest, updateTaskRequest, deleteTaskRequest } fr
 const EMPTY_FORM = {
   title: "", description: "", status: "backlog", type: "feature",
   priority: "medium", owner: "", milestone: "", dueDate: "",
-  tagsText: "", usefulPrompt: "", result: "",
-  context: "Background:\n\nConstraints:\n\nTried so far:\n\nPick up from here:",
-  contextTool: "", contextUpdatedAt: ""
+  tagsText: "", usefulPrompt: "", result: ""
 };
 
 const STATUS_HINTS = {
@@ -148,35 +146,12 @@ function TaskCard({ task, justHandedOff, onEdit, onStatusChange, onDelete, onCop
   );
 }
 
-const CONTEXT_TEMPLATE = "Background:\n\nConstraints:\n\nTried so far:\n\nPick up from here:";
-
-function formatRelativeUpdatedAt(value) {
-  if (!value) return "Not updated yet";
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return "Not updated yet";
-  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
-  if (seconds < 60) return "Last updated just now";
-  if (seconds < 3600) {
-    const minutes = Math.floor(seconds / 60);
-    return `Last updated ${minutes} min${minutes === 1 ? "" : "s"} ago`;
-  }
-  if (seconds < 86400) {
-    const hours = Math.floor(seconds / 3600);
-    return `Last updated ${hours} hour${hours === 1 ? "" : "s"} ago`;
-  }
-  const days = Math.floor(seconds / 86400);
-  return `Last updated ${days} day${days === 1 ? "" : "s"} ago`;
-}
-
 function TaskModal({ initialTask, onClose, onSave }) {
   const [form, setForm] = useState(() => initialTask ? {
     ...EMPTY_FORM,
     ...initialTask,
-    context: initialTask.context ?? "",
-    contextTool: initialTask.contextTool ?? "",
-    contextUpdatedAt: initialTask.contextUpdatedAt ?? "",
     tagsText: (initialTask.tags || []).join(", ")
-  } : { ...EMPTY_FORM, context: CONTEXT_TEMPLATE });
+  } : { ...EMPTY_FORM });
   const [error, setError] = useState("");
 
   const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
@@ -190,9 +165,6 @@ function TaskModal({ initialTask, onClose, onSave }) {
     const tags = form.tagsText.split(",").map((tag) => tag.trim()).filter(Boolean);
     onSave({
       ...form,
-      context: (form.context || "").trim(),
-      contextTool: form.contextTool || "",
-      contextUpdatedAt: form.contextUpdatedAt || "",
       title: form.title.trim(),
       description: form.description.trim(),
       owner: form.owner.trim(),
@@ -277,39 +249,6 @@ function TaskModal({ initialTask, onClose, onSave }) {
             <label htmlFor="task-tags">Tags <span className="label-hint">comma-separated</span></label>
             <input id="task-tags" value={form.tagsText || ""} onChange={(event) => update("tagsText", event.target.value)} placeholder="frontend, auth, research" />
           </div>
-
-          <section className="context-section" aria-labelledby="task-context-heading">
-            <div className="context-section-heading">
-              <div>
-                <h3 id="task-context-heading">Context</h3>
-                <p>Carry the important project details into any AI tool and pick up where you left off.</p>
-              </div>
-              <span className="context-updated" aria-live="polite">{formatRelativeUpdatedAt(form.contextUpdatedAt)}</span>
-            </div>
-            <div className="form-field">
-              <label htmlFor="task-context">Task context <span className="label-hint">Markdown supported</span></label>
-              <textarea
-                id="task-context"
-                className="context-textarea"
-                rows="7"
-                value={form.context ?? ""}
-                onChange={(event) => setForm((current) => ({
-                  ...current,
-                  context: event.target.value,
-                  contextUpdatedAt: new Date().toISOString()
-                }))}
-                placeholder={CONTEXT_TEMPLATE}
-              />
-              <span className="context-help">Keep background, constraints, what you've tried, and the next step here.</span>
-            </div>
-            <div className="form-field context-tool-field">
-              <label htmlFor="task-context-tool">AI tool <span className="label-hint">optional</span></label>
-              <select id="task-context-tool" value={form.contextTool || ""} onChange={(event) => update("contextTool", event.target.value)}>
-                <option value="">Not specified</option>
-                {["Claude", "ChatGPT", "Cursor", "Lovable", "Replit", "Other"].map((tool) => <option value={tool} key={tool}>{tool}</option>)}
-              </select>
-            </div>
-          </section>
 
           <div className="form-field">
             <label htmlFor="task-prompt">Useful prompt</label>
@@ -406,7 +345,7 @@ export default function App() {
     const query = search.trim().toLowerCase();
     return tasks.filter((task) => {
       const matchesType = typeFilter === "all" || task.type === typeFilter;
-      const haystack = [task.title, task.description, task.milestone, task.owner, task.usefulPrompt, task.result, task.context, task.contextTool, ...(task.tags || [])].join(" ").toLowerCase();
+      const haystack = [task.title, task.description, task.milestone, task.owner, task.usefulPrompt, task.result, ...(task.tags || [])].join(" ").toLowerCase();
       return matchesType && (!query || haystack.includes(query));
     });
   }, [tasks, search, typeFilter]);

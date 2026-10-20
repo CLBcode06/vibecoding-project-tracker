@@ -41,9 +41,6 @@ export function createTask(overrides = {}) {
     tags: [],
     usefulPrompt: "",
     result: "",
-    context: "",
-    contextTool: "",
-    contextUpdatedAt: "",
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -94,7 +91,6 @@ export function buildPromptContext(task) {
     task.milestone ? `Milestone: ${task.milestone}` : "",
     task.usefulPrompt ? `Useful prompt:\n${task.usefulPrompt}` : "",
     task.result ? `Recorded result:\n${task.result}` : "",
-    task.context ? `Task context${task.contextTool ? ` (AI tool: ${task.contextTool})` : ""}:\n${task.context}` : "",
     task.tags?.length ? `Tags: ${task.tags.join(", ")}` : "",
   ].filter(Boolean).join("\n\n");
 }
