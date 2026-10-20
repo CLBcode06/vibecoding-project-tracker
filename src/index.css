@@ -386,3 +386,39 @@ button.owner-chip:hover { background: #F1F3F4; border-color: #E0E4E7; }
   .deliverable-card { padding: 12px; }
   .deliverable-hint { min-height: 0; }
 }
+
+/* Milestone 12 — Project Pulse: useful, actionable project health without a noisy dashboard. */
+.project-pulse { margin: 0 0 27px; padding: 18px; border: 1px solid #E1E7E6; border-radius: 8px; background: #FFFFFF; }
+.pulse-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 15px; }
+.pulse-heading-row .eyebrow { margin-bottom: 5px; }
+.pulse-heading-row h2 { display: flex; align-items: center; gap: 9px; margin: 0; color: #343A40; font-size: 16px; font-weight: 600; }
+.pulse-total { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 5px; background: #E9F1F0; color: #04635F; font-size: 11px; }
+.pulse-subtitle { margin: 5px 0 0; color: #6C757D; font-size: 12px; line-height: 1.5; }
+.pulse-state { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 7px; padding: 6px 9px; border-radius: 5px; background: #F1F3F4; color: #626D75; font-size: 11px; font-weight: 600; }
+.pulse-state > span { width: 7px; height: 7px; border-radius: 50%; background: #6C757D; }
+.pulse-state-needs-work { background: #FFF4E5; color: #8A4B08; }
+.pulse-state-needs-work > span { background: #D97706; }
+.pulse-state-clear { background: #E7F5F1; color: #08675E; }
+.pulse-state-clear > span { background: #0D9488; }
+.pulse-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pulse-group { min-width: 0; padding: 12px; border: 1px solid #E7EAEC; border-radius: 6px; background: #FCFDFD; }
+.pulse-group-heading { display: flex; align-items: center; gap: 7px; min-height: 20px; margin-bottom: 8px; }
+.pulse-group-heading h3 { flex: 1; min-width: 0; margin: 0; color: #343A40; font-size: 11px; font-weight: 600; line-height: 1.45; }
+.pulse-icon { flex: 0 0 auto; }
+.pulse-danger { color: #B91C1C; }
+.pulse-warning { color: #D97706; }
+.pulse-neutral { color: #04635F; }
+.pulse-count { display: inline-flex; align-items: center; justify-content: center; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 4px; background: #F0F2F3; color: #6C757D; font-size: 10px; font-weight: 600; }
+.pulse-list { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.pulse-list li { min-width: 0; }
+.pulse-item { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 7px 6px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: #343A40; text-align: left; }
+.pulse-item:hover { border-color: #D8E5E3; background: #F0F7F6; }
+.pulse-item:focus-visible { outline: 3px solid rgba(4, 99, 95, .25); outline-offset: 1px; }
+.pulse-item-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.pulse-item-copy strong { overflow: hidden; color: #343A40; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.pulse-item-copy > span { color: #6C757D; font-size: 10px; line-height: 1.4; }
+.pulse-item-arrow { flex: 0 0 auto; color: #8A949C; transform: rotate(-90deg); }
+.pulse-empty { display: flex; align-items: center; gap: 6px; margin: 0; padding: 8px 5px; color: #6C757D; font-size: 10px; line-height: 1.5; }
+.pulse-empty svg { flex: 0 0 auto; color: #0D9488; }
+@media (max-width: 1100px) { .pulse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .project-pulse { padding: 13px; margin-bottom: 22px; } .pulse-heading-row { flex-direction: column; gap: 10px; } .pulse-grid { grid-template-columns: minmax(0, 1fr); } .pulse-group { padding: 11px; } }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle, Bug, CalendarDays, Check, ChevronDown, Clock3, Copy, Eye, Flag, Layers3,
-  Lightbulb, Plus, Search, Sparkles, Tag, Telescope, Trash2, UserRound, X
+  AlertCircle, AlertTriangle, Bug, CalendarDays, Check, ChevronDown, CircleHelp, Clock3, Copy, Eye, Flag, Layers3,
+  Lightbulb, Link2, Plus, Search, Sparkles, Tag, Telescope, Trash2, UserRound, X, ClipboardCheck
 } from "lucide-react";
 import {
   buildPromptContext, createTask, formatDueDate, getDueState,
@@ -14,6 +14,7 @@ const EMPTY_FORM = {
   priority: "medium", owner: "", milestone: "", dueDate: "",
   tagsText: "", usefulPrompt: "", result: "",
   context: "Background:\n\nConstraints:\n\nTried so far:\n\nPick up from here:",
+  nextAction: "",
   contextTool: "", contextUpdatedAt: ""
 };
 
@@ -217,6 +218,7 @@ function TaskModal({ initialTask, onClose, onSave, onCopy }) {
     onSave({
       ...form,
       context: (form.context || "").trim(),
+      nextAction: (form.nextAction || "").trim(),
       contextTool: form.contextTool || "",
       contextUpdatedAt: form.contextUpdatedAt || "",
       title: form.title.trim(),
@@ -336,6 +338,11 @@ function TaskModal({ initialTask, onClose, onSave, onCopy }) {
               </select>
             </div>
           </section>
+
+          <div className="form-field">
+            <label htmlFor="task-next-action">Next action <span className="label-hint">what should happen next?</span></label>
+            <textarea id="task-next-action" rows="2" value={form.nextAction || ""} onChange={(event) => update("nextAction", event.target.value)} placeholder="e.g. Restart the API and verify saved links still load." />
+          </div>
 
           <div className="form-field">
             <label htmlFor="task-prompt">Useful prompt</label>
@@ -479,6 +486,88 @@ function DeleteModal({ task, onCancel, onConfirm }) {
   );
 }
 
+function hasUsefulContext(task) {
+  const context = String(task.context || "")
+    .replace(/^\s*(background|constraints|tried so far|pick up from here)\s*:\s*$/gim, "")
+    .trim();
+  return Boolean(context || String(task.usefulPrompt || "").trim() || String(task.result || "").trim());
+}
+
+function getPulseItems(tasks, deliverables, now = new Date()) {
+  const activeTasks = tasks.filter((task) => task.status !== "done");
+  const overdue = activeTasks.filter((task) => getDueState(task, now) === "overdue");
+  const dueSoon = activeTasks.filter((task) => {
+    if (!task.dueDate || getDueState(task, now) === "overdue") return false;
+    const due = new Date(`${task.dueDate}T23:59:59`);
+    const diff = due.getTime() - now.getTime();
+    return Number.isFinite(diff) && diff >= 0 && diff <= 48 * 60 * 60 * 1000;
+  });
+  return {
+    overdue,
+    dueSoon,
+    review: tasks.filter((task) => task.status === "review"),
+    missingContext: activeTasks.filter((task) => !hasUsefulContext(task)),
+    missingNextAction: activeTasks.filter((task) => !String(task.nextAction || "").trim()),
+    missingDeliverables: deliverables.filter((item) => !String(item.url || "").trim()),
+  };
+}
+
+function ProjectPulse({ items, onOpenTask, onOpenDeliverable }) {
+  const sections = [
+    { key: "overdue", label: "Overdue tasks", icon: AlertTriangle, tone: "danger", empty: "No overdue tasks" },
+    { key: "dueSoon", label: "Due in the next 48 hours", icon: CalendarDays, tone: "warning", empty: "Nothing due soon" },
+    { key: "review", label: "Waiting for review", icon: ClipboardCheck, tone: "warning", empty: "No tasks waiting for review" },
+    { key: "missingContext", label: "Missing useful context", icon: CircleHelp, tone: "neutral", empty: "All active tasks have context" },
+    { key: "missingNextAction", label: "No next action recorded", icon: Clock3, tone: "neutral", empty: "Every active task has a next action" },
+    { key: "missingDeliverables", label: "Missing deliverable links", icon: Link2, tone: "neutral", empty: "All deliverables are linked" },
+  ];
+  const total = sections.reduce((sum, section) => sum + items[section.key].length, 0);
+  return (
+    <section className="project-pulse" aria-labelledby="project-pulse-heading">
+      <div className="pulse-heading-row">
+        <div>
+          <p className="eyebrow">PROJECT HEALTH</p>
+          <h2 id="project-pulse-heading">Project Pulse <span className="pulse-total">{total}</span></h2>
+          <p className="pulse-subtitle">A short list of things that could use your attention.</p>
+        </div>
+        <span className={classNames("pulse-state", total ? "pulse-state-needs-work" : "pulse-state-clear")}>
+          <span />{total ? `${total} item${total === 1 ? "" : "s"} to check` : "All clear"}
+        </span>
+      </div>
+      <div className="pulse-grid">
+        {sections.map((section) => {
+          const Icon = section.icon;
+          const entries = items[section.key];
+          return (
+            <section className="pulse-group" key={section.key} aria-label={section.label}>
+              <header className="pulse-group-heading">
+                <Icon size={15} className={`pulse-icon pulse-${section.tone}`} aria-hidden="true" />
+                <h3>{section.label}</h3>
+                <span className="pulse-count">{entries.length}</span>
+              </header>
+              {entries.length ? (
+                <ul className="pulse-list">
+                  {entries.map((entry) => {
+                    const deliverable = section.key === "missingDeliverables";
+                    const title = deliverable ? entry.label : entry.title;
+                    const detail = deliverable ? "Add a project link" : section.key === "overdue" || section.key === "dueSoon" ? `Due ${formatDueDate(entry.dueDate)}` : section.key === "review" ? "Ready for a decision" : section.key === "missingContext" ? "Add notes another session can use" : "Record the next concrete step";
+                    return <li key={deliverable ? entry.key : `${section.key}-${entry.id}`}>
+                      <button className="pulse-item" onClick={() => deliverable ? onOpenDeliverable(entry.key) : onOpenTask(entry)}>
+                        <span className="pulse-item-copy"><strong>{title || "Untitled task"}</strong><span>{detail}</span></span>
+                        <ChevronDown className="pulse-item-arrow" size={14} aria-hidden="true" />
+                      </button>
+                    </li>;
+                  })}
+                </ul>
+              ) : <p className="pulse-empty"><Check size={13} aria-hidden="true" />{section.empty}</p>}
+            </section>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const [tasks, setTasks] = useState([]);
   const [deliverables, setDeliverables] = useState(() => DELIVERABLE_DEFINITIONS.map(item => ({ ...item, url: "" })));
@@ -496,6 +585,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [toast, setToast] = useState("");
+  const [pulseNow, setPulseNow] = useState(() => new Date());
 
   useEffect(() => {
     let active = true;
@@ -513,7 +603,7 @@ export default function App() {
     const query = search.trim().toLowerCase();
     return tasks.filter((task) => {
       const matchesType = typeFilter === "all" || task.type === typeFilter;
-      const haystack = [task.title, task.description, task.milestone, task.owner, task.usefulPrompt, task.result, task.context, task.contextTool, ...(task.tags || [])].join(" ").toLowerCase();
+      const haystack = [task.title, task.description, task.milestone, task.owner, task.usefulPrompt, task.result, task.context, task.nextAction, task.contextTool, ...(task.tags || [])].join(" ").toLowerCase();
       return matchesType && (!query || haystack.includes(query));
     });
   }, [tasks, search, typeFilter]);
@@ -524,6 +614,20 @@ export default function App() {
     overdue: tasks.filter((task) => getDueState(task) === "overdue").length,
     done: tasks.filter((task) => task.status === "done").length,
   }), [tasks]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setPulseNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const pulseItems = useMemo(() => getPulseItems(tasks, deliverables, pulseNow), [tasks, deliverables, pulseNow]);
+
+  function openDeliverableFromPulse(key) {
+    const input = document.getElementById(`deliverable-${key}`);
+    input?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => input?.focus(), 180);
+    showToast(`Add the ${DELIVERABLE_DEFINITIONS.find((item) => item.key === key)?.label || "deliverable"} link above.`);
+  }
 
   function showToast(message) {
     setToast(message);
@@ -659,6 +763,8 @@ export default function App() {
             })}
           </div>
         </section>
+
+        <ProjectPulse items={pulseItems} onOpenTask={setModalTask} onOpenDeliverable={openDeliverableFromPulse} />
 
         <section className="summary-grid" aria-label="Project summary">
           <div className="summary-card"><span className="summary-label">All tasks</span><strong>{stats.total}</strong><Layers3 size={18} /></div>

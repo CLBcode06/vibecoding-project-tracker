@@ -42,6 +42,7 @@ export function createTask(overrides = {}) {
     usefulPrompt: "",
     result: "",
     context: "",
+    nextAction: "",
     contextTool: "",
     contextUpdatedAt: "",
     createdAt: now,
@@ -92,11 +93,13 @@ export function buildPromptContext(task) {
   const description = String(task?.description || "").trim();
   const context = String(task?.context || "").trim();
   const tool = String(task?.contextTool || "").trim();
+  const nextAction = String(task?.nextAction || "").trim();
 
   return [
     `# ${title}`,
     description ? `## Description\n${description}` : "",
     `## Context\n${context || "No additional context has been recorded yet."}`,
+    nextAction ? `## Next action\n${nextAction}` : "",
     tool ? `AI tool: ${tool}` : "",
   ].filter(Boolean).join("\n\n");
 }

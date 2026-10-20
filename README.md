@@ -49,3 +49,10 @@ Task cards and the task modal provide a **Copy Context** button. It copies a cle
 The Deliverable Anchor banner stays above the Kanban board and contains URL fields for Presentation, Demo, Report, and Documentation. Each field saves to the Express API and SQLite database when it loses focus (press Enter to save immediately). A hollow dot and “Empty” label indicate no URL; a teal filled dot and “Linked” indicate a URL is present. Saved URLs load again after a page refresh and are not cleared when the API restarts. Only `http://` and `https://` URLs are accepted.
 
 Run the manual checks in `MILESTONE-11-DELIVERABLES-TESTS.md` before tagging this milestone.
+
+
+## Milestone 12 — Project Pulse (`secret-sauce`)
+
+Project Pulse appears between the Deliverable Anchor and project summary. It surfaces overdue tasks, tasks due in the next 48 hours, tasks waiting in Review, active tasks without useful context, active tasks without a recorded next action, and missing Presentation / Demo / Report / Documentation links. Each task item opens its task editor; each missing deliverable item scrolls to and focuses its URL field. Counts update from the current task and deliverable data without an AI service.
+
+Tasks now include a persistent **Next action** field. Existing SQLite databases are migrated automatically with an empty `nextAction` column, without deleting existing task data. The next action is included in copied Markdown context. See `MILESTONE-12-TESTS.md` for manual acceptance checks.
