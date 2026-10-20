@@ -90,7 +90,13 @@ h1 { margin: 0; color: #343A40; font-size: 24px; line-height: 1.25; font-weight:
 .type-prompt { --type-color: theme('colors.type-prompt'); --type-ink: theme('colors.type-prompt-ink'); --type-tint: theme('colors.type-prompt-tint'); }
 .type-mark { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px 3px 6px; border-radius: 4px; background: var(--type-tint); color: var(--type-ink); font-size: 10px; font-weight: 600; }
 .type-mark svg { color: var(--type-color); flex: 0 0 auto; }
-.task-card[class*="type-"] { border-left: 4px solid var(--type-color); padding-left: 10px; }
+.task-card[class*="type-"] { border-left: 4px solid var(--type-color); padding-left: 10px; background: var(--type-tint); }
+/* On a tinted card, chips/pills go white so they still read as separate elements. */
+.task-card[class*="type-"] .type-mark { background: rgba(255, 255, 255, .75); }
+.task-card[class*="type-"] .priority-pill, .task-card[class*="type-"] .milestone-pill { background: rgba(255, 255, 255, .75); }
+.task-card[class*="type-"] .tag-chip { background: rgba(255, 255, 255, .6); border-color: rgba(52, 58, 64, .1); }
+.task-card[class*="type-"] .task-card-divider, .task-card[class*="type-"] .status-select-label { border-color: rgba(52, 58, 64, .09); }
+.task-card[class*="type-"] .task-card-divider { background: rgba(52, 58, 64, .09); }
 .task-modal[class*="type-"] { border-top: 4px solid var(--type-color); }
 .modal-type-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .modal-type-row .eyebrow { margin: 0; }
@@ -223,7 +229,7 @@ button.owner-chip:hover { background: #F1F3F4; border-color: #E0E4E7; }
 .owner-unassigned { color: #6C757D; }
 .owner-unassigned .owner-avatar { background: #fff; border: 1px dashed #AEB6BC; color: #8A949C; }
 .task-card { transition: box-shadow 160ms ease, border-color 160ms ease, background-color 200ms ease; }
-.task-card-handed-off { background: #F2F9F8; box-shadow: 0 0 0 2px rgba(4, 99, 95, .35); }
+.task-card-handed-off { box-shadow: 0 0 0 2px rgba(4, 99, 95, .35); }
 .handoff-icon { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; border-radius: 8px; background: #E6F1F0; color: #04635F; }
 .confirm-modal .form-field { margin-bottom: 12px; }
 .handoff-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
