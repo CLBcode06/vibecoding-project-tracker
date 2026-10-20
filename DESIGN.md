@@ -68,7 +68,7 @@ These are the colors the build milestones will reference. Once chosen, paste the
 Suggested sizes (override only if the design demands it):
 
 - Page title: 24 px / semibold
-- Section header: 16 px / semibold uppercase
+- Section header: 16 px / semibold uppercase.
 - Card title: 14 px / medium
 - Body: 14 px / regular
 - Caption: 12 px / regular muted
