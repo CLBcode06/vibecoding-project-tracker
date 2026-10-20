@@ -9,7 +9,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, "..", "data");
 fs.mkdirSync(dataDir, { recursive: true });
 const db = new Database(path.join(dataDir, "citrus.sqlite"));
-db.pragma("journal_mode = WAL");
+// Rollback-journal mode keeps every committed change in the single citrus.sqlite file
+// (no -wal/-shm sidecar files that can be lost, un-synced or left behind after a kill).
+db.pragma("journal_mode = DELETE");
+db.pragma("synchronous = FULL");
 db.exec(`CREATE TABLE IF NOT EXISTS tasks (
  id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
  status TEXT NOT NULL DEFAULT 'backlog', type TEXT NOT NULL DEFAULT 'feature',
@@ -64,3 +67,4 @@ app.post("/api/tasks",(req,res)=>{try{const t=normalize(req.body||{});insert.run
 app.put("/api/tasks/:id",(req,res)=>{const row=db.prepare("SELECT * FROM tasks WHERE id=?").get(req.params.id);if(!row)return res.status(404).json({error:"Task not found."});try{const t=normalize(req.body||{},fromRow(row));update.run(encode(t));res.json(t);}catch(e){res.status(400).json({error:e.message||"Could not update task."});}});
 app.delete("/api/tasks/:id",(req,res)=>{const r=db.prepare("DELETE FROM tasks WHERE id=?").run(req.params.id);if(!r.changes)return res.status(404).json({error:"Task not found."});res.status(204).end();});
 const port=Number(process.env.API_PORT||3001);app.listen(port,()=>console.log(`Citrus API running at http://localhost:${port}\nSQLite database: ${path.join(dataDir,"citrus.sqlite")}`));
+for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => { try { db.close(); } finally { process.exit(0); } });
