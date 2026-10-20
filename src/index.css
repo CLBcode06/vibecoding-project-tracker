@@ -84,10 +84,10 @@ h1 { margin: 0; color: #343A40; font-size: 24px; line-height: 1.25; font-weight:
 .task-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
 /* Task type (M6 tag-style). One set of variables, reused by card, modal and dialogs.
    --type-color = accent (stripe/icon, DESIGN.md tokens); --type-ink = darker text shade for AA contrast. */
-.type-feature { --type-color: #0D9488; --type-ink: #0F766E; --type-tint: #E6F4F2; }
-.type-bug { --type-color: #DC2626; --type-ink: #B91C1C; --type-tint: #FDECEC; }
-.type-research { --type-color: #6B7280; --type-ink: #4B5563; --type-tint: #EEF0F2; }
-.type-prompt { --type-color: #D35400; --type-ink: #B34700; --type-tint: #FBEEE4; }
+.type-feature { --type-color: theme('colors.type-feature'); --type-ink: theme('colors.type-feature-ink'); --type-tint: theme('colors.type-feature-tint'); }
+.type-bug { --type-color: theme('colors.type-bug'); --type-ink: theme('colors.type-bug-ink'); --type-tint: theme('colors.type-bug-tint'); }
+.type-research { --type-color: theme('colors.type-research'); --type-ink: theme('colors.type-research-ink'); --type-tint: theme('colors.type-research-tint'); }
+.type-prompt { --type-color: theme('colors.type-prompt'); --type-ink: theme('colors.type-prompt-ink'); --type-tint: theme('colors.type-prompt-tint'); }
 .type-mark { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px 3px 6px; border-radius: 4px; background: var(--type-tint); color: var(--type-ink); font-size: 10px; font-weight: 600; }
 .type-mark svg { color: var(--type-color); flex: 0 0 auto; }
 .task-card[class*="type-"] { border-left: 4px solid var(--type-color); padding-left: 10px; }
