@@ -30,16 +30,3 @@ The backend creates `data/citrus.sqlite` automatically and inserts four mock tas
 - Express CRUD API with basic field validation.
 
 If the page reports that it cannot connect to the API, run `npm run dev` from the project root and keep that terminal open. The API is for local single-user development; authentication and multi-user access are not implemented yet.
-
-
-## Milestone 10 — Copy Context
-
-Task cards and the task modal provide a **Copy Context** button. It copies a clean Markdown briefing containing the task title, description, and full saved/current Context field, with the selected AI tool included when set. See `MILESTONE-10-TESTS.md` for acceptance checks.
-
-
-## Milestone 11 — Markdown context preview and drag-and-drop
-
-- Each task card includes **View Context**, which opens a rendered Markdown preview of the task briefing (title, description, full context, and selected AI tool).
-- The preview supports headings, paragraphs, lists, inline bold/italic/code, and fenced code blocks, and includes a **Copy Context** action.
-- Drag cards between Backlog, In Progress, Review and Done. The destination column highlights while dragging, and the new status is saved through the existing API/SQLite path. The status dropdown remains available as an alternative.
-- See `MILESTONE-11-TESTS.md` for the manual acceptance checklist.

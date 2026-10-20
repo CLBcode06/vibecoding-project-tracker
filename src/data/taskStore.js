@@ -8,3 +8,6 @@ export const loadTasks=()=>request("/api/tasks");
 export const createTaskRequest=task=>request("/api/tasks",{method:"POST",body:JSON.stringify(task)});
 export const updateTaskRequest=(id,task)=>request(`/api/tasks/${encodeURIComponent(id)}`,{method:"PUT",body:JSON.stringify(task)});
 export const deleteTaskRequest=id=>request(`/api/tasks/${encodeURIComponent(id)}`,{method:"DELETE"});
+
+export const loadDeliverables=()=>request("/api/deliverables");
+export const saveDeliverableRequest=(key,url)=>request(`/api/deliverables/${encodeURIComponent(key)}`,{method:"PUT",body:JSON.stringify({url})});

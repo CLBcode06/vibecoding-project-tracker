@@ -7,7 +7,7 @@ import {
   buildPromptContext, createTask, formatDueDate, getDueState,
   TASK_PRIORITIES, TASK_STATUSES, TASK_TYPES
 } from "./data/taskModel.js";
-import { loadTasks, createTaskRequest, updateTaskRequest, deleteTaskRequest } from "./data/taskStore.js";
+import { loadTasks, createTaskRequest, updateTaskRequest, deleteTaskRequest, loadDeliverables, saveDeliverableRequest } from "./data/taskStore.js";
 
 const EMPTY_FORM = {
   title: "", description: "", status: "backlog", type: "feature",
@@ -16,6 +16,13 @@ const EMPTY_FORM = {
   context: "Background:\n\nConstraints:\n\nTried so far:\n\nPick up from here:",
   contextTool: "", contextUpdatedAt: ""
 };
+
+const DELIVERABLE_DEFINITIONS = [
+  { key: "presentation", label: "Presentation" },
+  { key: "demo", label: "Demo" },
+  { key: "report", label: "Report" },
+  { key: "documentation", label: "Documentation" },
+];
 
 const STATUS_HINTS = {
   backlog: "Seems Empty, add a Task?",
@@ -474,6 +481,9 @@ function DeleteModal({ task, onCancel, onConfirm }) {
 
 export default function App() {
   const [tasks, setTasks] = useState([]);
+  const [deliverables, setDeliverables] = useState(() => DELIVERABLE_DEFINITIONS.map(item => ({ ...item, url: "" })));
+  const [deliverablesLoading, setDeliverablesLoading] = useState(true);
+  const [savingDeliverable, setSavingDeliverable] = useState({});
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState("");
   const [modalTask, setModalTask] = useState(undefined);
@@ -492,6 +502,10 @@ export default function App() {
     loadTasks().then((items) => { if (active) { setTasks(items); setApiError(""); } })
       .catch((error) => { if (active) setApiError(`Cannot connect to the Citrus API. Start the app with npm run dev. (${error.message})`); })
       .finally(() => { if (active) setLoading(false); });
+    loadDeliverables().then((items) => {
+      if (active) setDeliverables(DELIVERABLE_DEFINITIONS.map(definition => ({ ...definition, ...(items.find(item => item.key === definition.key) || { url: "" }) })));
+    }).catch((error) => { if (active) setApiError(`Could not load project deliverables: ${error.message}`); })
+      .finally(() => { if (active) setDeliverablesLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -514,6 +528,25 @@ export default function App() {
   function showToast(message) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2400);
+  }
+
+  function editDeliverable(key, url) {
+    setDeliverables(current => current.map(item => item.key === key ? { ...item, url } : item));
+  }
+
+  async function saveDeliverable(key) {
+    const current = deliverables.find(item => item.key === key);
+    if (!current) return;
+    setSavingDeliverable(state => ({ ...state, [key]: true }));
+    try {
+      const saved = await saveDeliverableRequest(key, current.url);
+      setDeliverables(items => items.map(item => item.key === key ? { ...item, ...saved } : item));
+      setApiError("");
+    } catch (error) {
+      setApiError(`Could not save ${key}: ${error.message}`);
+    } finally {
+      setSavingDeliverable(state => ({ ...state, [key]: false }));
+    }
   }
 
   async function saveTask(form) {
@@ -598,6 +631,33 @@ export default function App() {
             <p className="page-subtitle">A clear view of what you're building, what you've learned, and what's next.</p>
           </div>
           <button className="button button-primary mobile-add" onClick={() => setModalTask("new")}><Plus size={17} />Add Task...</button>
+        </section>
+
+        <section className="deliverables-section" aria-labelledby="deliverables-heading">
+          <div className="deliverables-heading-row">
+            <div>
+              <p className="eyebrow">PROJECT DELIVERABLES</p>
+              <h2 id="deliverables-heading">Deliverable anchor</h2>
+            </div>
+            <span className="deliverables-caption">Pinned for quick access</span>
+          </div>
+          <div className="deliverables-grid">
+            {DELIVERABLE_DEFINITIONS.map(definition => {
+              const item = deliverables.find(deliverable => deliverable.key === definition.key) || { url: "" };
+              const filled = Boolean(item.url.trim());
+              return <article className="deliverable-card" key={definition.key}>
+                <div className="deliverable-card-title">
+                  <span className={classNames("deliverable-status-dot", filled && "is-filled")} aria-label={filled ? "Link saved" : "No link saved"} />
+                  <h3>{definition.label}</h3>
+                  <span className="deliverable-status-text">{savingDeliverable[definition.key] ? "Saving…" : filled ? "Linked" : "Empty"}</span>
+                </div>
+                <label className="deliverable-url-label" htmlFor={`deliverable-${definition.key}`}>URL</label>
+                <input id={`deliverable-${definition.key}`} className="deliverable-url-input" type="url" inputMode="url" placeholder="https://…" value={item.url} onChange={event => editDeliverable(definition.key, event.target.value)} onBlur={() => saveDeliverable(definition.key)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} aria-describedby={`deliverable-hint-${definition.key}`} />
+                <p id={`deliverable-hint-${definition.key}`} className="deliverable-hint">{deliverablesLoading ? "Loading saved link…" : "Saves when you leave this field"}</p>
+                {filled && <a className="deliverable-open-link" href={item.url} target="_blank" rel="noreferrer">Open link <ChevronDown size={13} /></a>}
+              </article>;
+            })}
+          </div>
         </section>
 
         <section className="summary-grid" aria-label="Project summary">

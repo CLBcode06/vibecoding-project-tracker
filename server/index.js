@@ -22,10 +22,6 @@ db.exec(`CREATE TABLE IF NOT EXISTS tasks (
  result TEXT NOT NULL DEFAULT '', context TEXT NOT NULL DEFAULT '', contextTool TEXT NOT NULL DEFAULT '',
  contextUpdatedAt TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
 )`);
-const taskColumns = new Set(db.pragma("table_info(tasks)").map(column => column.name));
-if (!taskColumns.has("context")) db.exec("ALTER TABLE tasks ADD COLUMN context TEXT NOT NULL DEFAULT ''");
-if (!taskColumns.has("contextTool")) db.exec("ALTER TABLE tasks ADD COLUMN contextTool TEXT NOT NULL DEFAULT ''");
-if (!taskColumns.has("contextUpdatedAt")) db.exec("ALTER TABLE tasks ADD COLUMN contextUpdatedAt TEXT NOT NULL DEFAULT ''");
 const VALID_STATUSES = new Set(["backlog", "in_progress", "review", "done"]);
 const VALID_TYPES = new Set(["feature", "bug", "research", "prompt"]);
 const VALID_PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
@@ -70,6 +66,18 @@ if (db.prepare("SELECT COUNT(*) count FROM tasks").get().count === 0) {
 }
 const app=express(); app.use(express.json({limit:"1mb"}));
 app.get("/api/health",(_req,res)=>res.json({status:"ok",database:"sqlite"}));
+app.get("/api/deliverables", (_req, res) => {
+ res.json(db.prepare("SELECT key, url, updatedAt FROM project_deliverables ORDER BY CASE key WHEN 'presentation' THEN 1 WHEN 'demo' THEN 2 WHEN 'report' THEN 3 ELSE 4 END").all());
+});
+app.put("/api/deliverables/:key", (req, res) => {
+ const key = String(req.params.key || "");
+ if (!DELIVERABLE_KEYS.includes(key)) return res.status(404).json({ error: "Unknown deliverable." });
+ const url = String(req.body?.url ?? "").trim();
+ if (url && !/^https?:\/\//i.test(url)) return res.status(400).json({ error: "Enter a URL starting with http:// or https://." });
+ const deliverable = { key, url: url.slice(0, 2048), updatedAt: new Date().toISOString() };
+ saveDeliverable.run(deliverable);
+ res.json(deliverable);
+});
 app.get("/api/tasks",(_req,res)=>res.json(db.prepare("SELECT * FROM tasks ORDER BY createdAt DESC").all().map(fromRow)));
 app.post("/api/tasks",(req,res)=>{try{const t=normalize(req.body||{});insert.run(encode(t));res.status(201).json(t);}catch(e){res.status(400).json({error:e.message||"Could not create task."});}});
 app.put("/api/tasks/:id",(req,res)=>{const row=db.prepare("SELECT * FROM tasks WHERE id=?").get(req.params.id);if(!row)return res.status(404).json({error:"Task not found."});try{const t=normalize(req.body||{},fromRow(row));update.run(encode(t));res.json(t);}catch(e){res.status(400).json({error:e.message||"Could not update task."});}});
