@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle, Bug, CalendarDays, Check, ChevronDown, Clock3, Flag, Layers3,
-  Lightbulb, Plus, Search, Sparkles, Tag, Telescope, Trash2, X
+  Lightbulb, Plus, Search, Sparkles, Tag, Telescope, Trash2, UserRound, X
 } from "lucide-react";
 import {
   buildPromptContext, createTask, formatDueDate, getDueState,
@@ -35,6 +35,28 @@ function dueClass(state) {
   }[state] || "due-none";
 }
 
+// Owner display: initials avatar with a stable colour per person (same name -> same colour).
+function ownerInitials(name) {
+  const parts = name.trim().split(/\s+/);
+  return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : name.trim().slice(0, 2)).toUpperCase();
+}
+function ownerHue(name) {
+  let hash = 0;
+  for (const ch of name.trim().toLowerCase()) hash = (hash * 31 + ch.charCodeAt(0)) % 6;
+  return hash;
+}
+
+function OwnerChip({ owner, onClick, label }) {
+  const name = (owner || "").trim();
+  const Tag = onClick ? "button" : "span";
+  return (
+    <Tag className={classNames("owner-chip", name ? `owner-hue-${ownerHue(name)}` : "owner-unassigned")} onClick={onClick} aria-label={label} title={onClick ? "Hand off to…" : undefined}>
+      <span className="owner-avatar">{name ? ownerInitials(name) : <UserRound size={12} aria-hidden="true" />}</span>
+      <span className="owner-name">{name || "Unassigned"}</span>
+    </Tag>
+  );
+}
+
 // Single source of truth for task-type icons. Colours live in index.css
 // (.type-feature, .type-bug, ...) and are shared by every place a type shows.
 const TYPE_ICONS = { feature: Lightbulb, bug: Bug, research: Telescope, prompt: Sparkles };
@@ -54,12 +76,12 @@ function TypeMark({ type, size = 13 }) {
   );
 }
 
-function TaskCard({ task, onEdit, onStatusChange, onDelete, onCopy }) {
+function TaskCard({ task, justHandedOff, onEdit, onStatusChange, onDelete, onCopy, onHandOff }) {
   const dueState = getDueState(task);
   const [showMenu, setShowMenu] = useState(false);
 
   return (
-    <article className={classNames("task-card task-card-clickable", `type-${typeKey(task.type)}`)} role="button" tabIndex={0} aria-label={`Edit task: ${task.title}`} onClick={() => onEdit(task)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onEdit(task); } }}>
+    <article className={classNames("task-card task-card-clickable", `type-${typeKey(task.type)}`, justHandedOff && "task-card-handed-off")} role="button" tabIndex={0} aria-label={`Edit task: ${task.title}`} onClick={() => onEdit(task)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onEdit(task); } }}>
       <div className="task-card-top">
         <TypeMark type={task.type} />
         <div className="card-menu-wrap">
@@ -69,6 +91,7 @@ function TaskCard({ task, onEdit, onStatusChange, onDelete, onCopy }) {
           {showMenu && (
             <div className="card-menu" onClick={(event) => event.stopPropagation()}>
               <button onClick={() => { onEdit(task); setShowMenu(false); }}>Edit task</button>
+              <button onClick={() => { onHandOff(task); setShowMenu(false); }}>Hand off to…</button>
               <button onClick={() => { onCopy(task); setShowMenu(false); }}>Copy prompt context</button>
               <button className="danger-menu-item" onClick={() => { onDelete(task); setShowMenu(false); }}>Delete task</button>
             </div>
@@ -93,7 +116,7 @@ function TaskCard({ task, onEdit, onStatusChange, onDelete, onCopy }) {
         </div>
       )}
 
-      {(task.dueDate || task.owner || task.usefulPrompt || task.result) && <div className="task-card-divider" />}
+      <div className="task-card-divider" />
 
       <div className="task-footer">
         {task.dueDate ? (
@@ -101,7 +124,9 @@ function TaskCard({ task, onEdit, onStatusChange, onDelete, onCopy }) {
             <CalendarDays size={13} />{formatDueDate(task.dueDate)}
           </span>
         ) : <span className="task-footer-spacer" />}
-        {task.owner && <span className="owner-avatar" title={task.owner}>{task.owner.trim().slice(0, 2).toUpperCase()}</span>}
+        <span onClick={(event) => event.stopPropagation()}>
+          <OwnerChip owner={task.owner} onClick={() => onHandOff(task)} label={task.owner ? `Owner: ${task.owner}. Hand off to someone else` : "Unassigned. Hand off to someone"} />
+        </span>
       </div>
 
       {(task.usefulPrompt || task.result) && (
@@ -245,6 +270,40 @@ function TaskModal({ initialTask, onClose, onSave }) {
   );
 }
 
+function HandoffModal({ task, people, onCancel, onConfirm }) {
+  const [name, setName] = useState("");
+  const next = name.trim();
+  const unchanged = next.toLowerCase() === (task.owner || "").trim().toLowerCase();
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
+      <form className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="handoff-title" onSubmit={(event) => { event.preventDefault(); if (next && !unchanged) onConfirm(next); }}>
+        <div className="handoff-icon"><UserRound size={21} /></div>
+        <h2 id="handoff-title">Hand off to…</h2>
+        <TypeMark type={task.type} />
+        <p><strong>{task.title}</strong><br />Currently with: {task.owner ? task.owner : "nobody"}</p>
+        <div className="form-field">
+          <label htmlFor="handoff-name">New owner</label>
+          <input id="handoff-name" autoFocus list="handoff-people" value={name} onChange={(event) => setName(event.target.value)} placeholder="Type a name" maxLength={80} />
+          <datalist id="handoff-people">{people.filter((person) => person !== task.owner).map((person) => <option value={person} key={person} />)}</datalist>
+        </div>
+        {people.filter((person) => person !== task.owner).length > 0 && (
+          <div className="handoff-suggestions">
+            {people.filter((person) => person !== task.owner).map((person) => (
+              <button type="button" key={person} className={classNames("owner-chip", `owner-hue-${ownerHue(person)}`)} onClick={() => setName(person)}>
+                <span className="owner-avatar">{ownerInitials(person)}</span><span className="owner-name">{person}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="modal-actions">
+          <button type="button" className="button button-secondary" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="button button-primary" disabled={!next || unchanged}>Hand off</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function DeleteModal({ task, onCancel, onConfirm }) {
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
@@ -268,6 +327,8 @@ export default function App() {
   const [apiError, setApiError] = useState("");
   const [modalTask, setModalTask] = useState(undefined);
   const [deleteTask, setDeleteTask] = useState(null);
+  const [handoffTask, setHandoffTask] = useState(null);
+  const [handedOffId, setHandedOffId] = useState(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [toast, setToast] = useState("");
@@ -323,6 +384,23 @@ export default function App() {
       const saved = await updateTaskRequest(id, { ...task, status });
       setTasks(current => current.map(item => item.id === id ? saved : item)); setApiError("");
     } catch (error) { setApiError(`Could not update task status: ${error.message}`); }
+  }
+
+  const people = useMemo(() => {
+    const seen = new Map();
+    tasks.forEach((task) => { const name = (task.owner || "").trim(); if (name && !seen.has(name.toLowerCase())) seen.set(name.toLowerCase(), name); });
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [tasks]);
+
+  async function handOff(task, name) {
+    try {
+      const saved = await updateTaskRequest(task.id, { ...task, owner: name, updatedAt: new Date().toISOString() });
+      setTasks(current => current.map(item => item.id === saved.id ? saved : item));
+      setHandoffTask(null); setApiError("");
+      showToast(`Task assigned to ${name}`);
+      setHandedOffId(task.id);
+      window.setTimeout(() => setHandedOffId((id) => id === task.id ? null : id), 2000);
+    } catch (error) { setApiError(`Could not hand off task: ${error.message}`); }
   }
 
   async function copyContext(task) {
@@ -411,7 +489,7 @@ export default function App() {
                 </header>
                 <div className="column-body">
                   {columnTasks.length ? columnTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} onEdit={setModalTask} onStatusChange={updateStatus} onDelete={setDeleteTask} onCopy={copyContext} />
+                    <TaskCard key={task.id} task={task} onEdit={setModalTask} onStatusChange={updateStatus} onDelete={setDeleteTask} onCopy={copyContext} onHandOff={setHandoffTask} justHandedOff={handedOffId === task.id} />
                   )) : (
                     <div className="empty-column">
                       <span className="empty-icon"><Layers3 size={17} /></span>
@@ -438,6 +516,7 @@ export default function App() {
           onSave={saveTask}
         />
       )}
+      {handoffTask && <HandoffModal key={handoffTask.id} task={handoffTask} people={people} onCancel={() => setHandoffTask(null)} onConfirm={(name) => handOff(handoffTask, name)} />}
       {deleteTask && <DeleteModal task={deleteTask} onCancel={() => setDeleteTask(null)} onConfirm={confirmDelete} />}
       {toast && <div className="toast" role="status"><Check size={16} />{toast}</div>}
     </div>

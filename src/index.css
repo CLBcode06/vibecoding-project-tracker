@@ -126,7 +126,6 @@ h1 { margin: 0; color: #343A40; font-size: 24px; line-height: 1.25; font-weight:
 .due-neutral { color: #6C757D; }
 .due-none { color: #6C757D; }
 .task-footer-spacer { flex: 1; }
-.owner-avatar { width: 25px; height: 25px; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; border: 1px solid #C7DFDC; border-radius: 50%; background: #E6F1F0; color: #04635F; font-size: 9px; font-weight: 700; }
 .task-notes-indicator { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 8px; color: #77828A; font-size: 9px; }
 .task-notes-indicator span { display: inline-flex; align-items: center; gap: 4px; }
 .task-notes-indicator svg { color: #04635F; }
@@ -208,3 +207,25 @@ h1 { margin: 0; color: #343A40; font-size: 24px; line-height: 1.25; font-weight:
 .api-error, .loading-banner { display:flex; align-items:center; gap:10px; margin:0 0 16px; padding:12px 14px; border-radius:8px; font-size:13px; }
 .api-error { color:#991b1b; background:#fef2f2; border:1px solid #fecaca; }
 .loading-banner { color:#475569; background:#f8fafc; border:1px solid #e2e8f0; }
+
+
+/* Milestone 7: task owner. Avatar + name on every card, hand-off dialog, acknowledgement. */
+.owner-chip { --hue-bg: #E6F1F0; --hue-fg: #04635F; --hue-border: #C7DFDC; display: inline-flex; align-items: center; gap: 6px; max-width: 150px; min-width: 0; padding: 2px 8px 2px 2px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: #495057; font-size: 10px; font-weight: 500; }
+button.owner-chip:hover { background: #F1F3F4; border-color: #E0E4E7; }
+.owner-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.owner-avatar { width: 22px; height: 22px; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; border: 1px solid var(--hue-border); border-radius: 50%; background: var(--hue-bg); color: var(--hue-fg); font-size: 9px; font-weight: 700; }
+.owner-hue-0 { --hue-bg: #E6F1F0; --hue-fg: #04635F; --hue-border: #C7DFDC; }
+.owner-hue-1 { --hue-bg: #FBEEE4; --hue-fg: #A63F00; --hue-border: #F1D3BD; }
+.owner-hue-2 { --hue-bg: #E8EEF9; --hue-fg: #2B4C8C; --hue-border: #C9D6EE; }
+.owner-hue-3 { --hue-bg: #F3E8F7; --hue-fg: #6B2C86; --hue-border: #E0CBEA; }
+.owner-hue-4 { --hue-bg: #FBF3D9; --hue-fg: #7A5A00; --hue-border: #EDDFA8; }
+.owner-hue-5 { --hue-bg: #E9EFE2; --hue-fg: #3F5F1F; --hue-border: #CEDBBF; }
+.owner-unassigned { color: #6C757D; }
+.owner-unassigned .owner-avatar { background: #fff; border: 1px dashed #AEB6BC; color: #8A949C; }
+.task-card { transition: box-shadow 160ms ease, border-color 160ms ease, background-color 200ms ease; }
+.task-card-handed-off { background: #F2F9F8; box-shadow: 0 0 0 2px rgba(4, 99, 95, .35); }
+.handoff-icon { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; border-radius: 8px; background: #E6F1F0; color: #04635F; }
+.confirm-modal .form-field { margin-bottom: 12px; }
+.handoff-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.handoff-suggestions .owner-chip { border-color: #E0E4E7; }
+.handoff-suggestions .owner-chip:hover { background: #F1F3F4; }
