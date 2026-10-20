@@ -70,7 +70,7 @@ Suggested sizes (override only if the design demands it):
 - Page title: 24 px / semibold
 - Section header: 16 px / semibold uppercase
 - Card title: 14 px / medium
-- Body: 14 px / regular.
+- Body: 14 px / regular
 - Caption: 12 px / regular muted
 
 ## 4. Component principles
