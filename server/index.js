@@ -19,8 +19,21 @@ db.exec(`CREATE TABLE IF NOT EXISTS tasks (
  priority TEXT NOT NULL DEFAULT 'medium', owner TEXT NOT NULL DEFAULT '',
  milestone TEXT NOT NULL DEFAULT '', dueDate TEXT NOT NULL DEFAULT '',
  tags TEXT NOT NULL DEFAULT '[]', usefulPrompt TEXT NOT NULL DEFAULT '',
- result TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
+ result TEXT NOT NULL DEFAULT '', context TEXT NOT NULL DEFAULT '', contextTool TEXT NOT NULL DEFAULT '',
+ contextUpdatedAt TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
 )`);
+const taskColumns = new Set(db.pragma("table_info(tasks)").map(column => column.name));
+if (!taskColumns.has("context")) db.exec("ALTER TABLE tasks ADD COLUMN context TEXT NOT NULL DEFAULT ''");
+if (!taskColumns.has("contextTool")) db.exec("ALTER TABLE tasks ADD COLUMN contextTool TEXT NOT NULL DEFAULT ''");
+if (!taskColumns.has("contextUpdatedAt")) db.exec("ALTER TABLE tasks ADD COLUMN contextUpdatedAt TEXT NOT NULL DEFAULT ''");
+db.exec(`CREATE TABLE IF NOT EXISTS project_deliverables (
+ key TEXT PRIMARY KEY, url TEXT NOT NULL DEFAULT '', updatedAt TEXT NOT NULL
+)`);
+const DELIVERABLE_KEYS = ["presentation", "demo", "report", "documentation"];
+const saveDeliverable = db.prepare(`INSERT INTO project_deliverables (key,url,updatedAt) VALUES (@key,@url,@updatedAt) ON CONFLICT(key) DO UPDATE SET url=excluded.url, updatedAt=excluded.updatedAt`);
+// Create missing deliverable slots without overwriting links saved by a previous run.
+const ensureDeliverable = db.prepare("INSERT OR IGNORE INTO project_deliverables (key, url, updatedAt) VALUES (?, '', ?)");
+for (const key of DELIVERABLE_KEYS) ensureDeliverable.run(key, new Date().toISOString());
 const VALID_STATUSES = new Set(["backlog", "in_progress", "review", "done"]);
 const VALID_TYPES = new Set(["feature", "bug", "research", "prompt"]);
 const VALID_PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
@@ -45,11 +58,14 @@ function normalize(input, existing = {}) {
   tags: Array.isArray(rawTags) ? rawTags.map(String).map(x=>x.trim()).filter(Boolean) : [],
   usefulPrompt: String(input.usefulPrompt ?? existing.usefulPrompt ?? "").trim(),
   result: String(input.result ?? existing.result ?? "").trim(),
+  context: String(input.context ?? existing.context ?? ""),
+  contextTool: String(input.contextTool ?? existing.contextTool ?? "").trim().slice(0,40),
+  contextUpdatedAt: String(input.contextUpdatedAt ?? existing.contextUpdatedAt ?? ""),
   createdAt: existing.createdAt || input.createdAt || now, updatedAt: now
  };
 }
-const insert = db.prepare(`INSERT INTO tasks (id,title,description,status,type,priority,owner,milestone,dueDate,tags,usefulPrompt,result,createdAt,updatedAt) VALUES (@id,@title,@description,@status,@type,@priority,@owner,@milestone,@dueDate,@tags,@usefulPrompt,@result,@createdAt,@updatedAt)`);
-const update = db.prepare(`UPDATE tasks SET title=@title,description=@description,status=@status,type=@type,priority=@priority,owner=@owner,milestone=@milestone,dueDate=@dueDate,tags=@tags,usefulPrompt=@usefulPrompt,result=@result,updatedAt=@updatedAt WHERE id=@id`);
+const insert = db.prepare(`INSERT INTO tasks (id,title,description,status,type,priority,owner,milestone,dueDate,tags,usefulPrompt,result,context,contextTool,contextUpdatedAt,createdAt,updatedAt) VALUES (@id,@title,@description,@status,@type,@priority,@owner,@milestone,@dueDate,@tags,@usefulPrompt,@result,@context,@contextTool,@contextUpdatedAt,@createdAt,@updatedAt)`);
+const update = db.prepare(`UPDATE tasks SET title=@title,description=@description,status=@status,type=@type,priority=@priority,owner=@owner,milestone=@milestone,dueDate=@dueDate,tags=@tags,usefulPrompt=@usefulPrompt,result=@result,context=@context,contextTool=@contextTool,contextUpdatedAt=@contextUpdatedAt,updatedAt=@updatedAt WHERE id=@id`);
 const encode = task => ({...task,tags:JSON.stringify(task.tags)});
 const demos = [
  {id:"demo-1",title:"Define the project data model",description:"Agree which details each task needs before connecting persistence.",status:"done",type:"feature",priority:"high",owner:"You",milestone:"M4 · Data model",tags:["architecture","planning"],usefulPrompt:"Design a task model for a vibe-coding tracker that records useful prompts and their results.",result:"Task shape agreed: status, type, priority, milestone, due date, prompt, result and tags."},
@@ -62,6 +78,18 @@ if (db.prepare("SELECT COUNT(*) count FROM tasks").get().count === 0) {
 }
 const app=express(); app.use(express.json({limit:"1mb"}));
 app.get("/api/health",(_req,res)=>res.json({status:"ok",database:"sqlite"}));
+app.get("/api/deliverables", (_req, res) => {
+ res.json(db.prepare("SELECT key, url, updatedAt FROM project_deliverables ORDER BY CASE key WHEN 'presentation' THEN 1 WHEN 'demo' THEN 2 WHEN 'report' THEN 3 ELSE 4 END").all());
+});
+app.put("/api/deliverables/:key", (req, res) => {
+ const key = String(req.params.key || "");
+ if (!DELIVERABLE_KEYS.includes(key)) return res.status(404).json({ error: "Unknown deliverable." });
+ const url = String(req.body?.url ?? "").trim();
+ if (url && !/^https?:\/\//i.test(url)) return res.status(400).json({ error: "Enter a URL starting with http:// or https://." });
+ const deliverable = { key, url: url.slice(0, 2048), updatedAt: new Date().toISOString() };
+ saveDeliverable.run(deliverable);
+ res.json(deliverable);
+});
 app.get("/api/tasks",(_req,res)=>res.json(db.prepare("SELECT * FROM tasks ORDER BY createdAt DESC").all().map(fromRow)));
 app.post("/api/tasks",(req,res)=>{try{const t=normalize(req.body||{});insert.run(encode(t));res.status(201).json(t);}catch(e){res.status(400).json({error:e.message||"Could not create task."});}});
 app.put("/api/tasks/:id",(req,res)=>{const row=db.prepare("SELECT * FROM tasks WHERE id=?").get(req.params.id);if(!row)return res.status(404).json({error:"Task not found."});try{const t=normalize(req.body||{},fromRow(row));update.run(encode(t));res.json(t);}catch(e){res.status(400).json({error:e.message||"Could not update task."});}});

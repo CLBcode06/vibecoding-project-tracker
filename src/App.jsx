@@ -1,19 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle, Bug, CalendarDays, Check, ChevronDown, Clock3, Flag, Layers3,
+  AlertCircle, Bug, CalendarDays, Check, ChevronDown, Clock3, Copy, Eye, Flag, Layers3,
   Lightbulb, Plus, Search, Sparkles, Tag, Telescope, Trash2, UserRound, X
 } from "lucide-react";
 import {
   buildPromptContext, createTask, formatDueDate, getDueState,
   TASK_PRIORITIES, TASK_STATUSES, TASK_TYPES
 } from "./data/taskModel.js";
-import { loadTasks, createTaskRequest, updateTaskRequest, deleteTaskRequest } from "./data/taskStore.js";
+import { loadTasks, createTaskRequest, updateTaskRequest, deleteTaskRequest, loadDeliverables, saveDeliverableRequest } from "./data/taskStore.js";
 
 const EMPTY_FORM = {
   title: "", description: "", status: "backlog", type: "feature",
   priority: "medium", owner: "", milestone: "", dueDate: "",
-  tagsText: "", usefulPrompt: "", result: ""
+  tagsText: "", usefulPrompt: "", result: "",
+  context: "Background:\n\nConstraints:\n\nTried so far:\n\nPick up from here:",
+  contextTool: "", contextUpdatedAt: ""
 };
+
+const DELIVERABLE_DEFINITIONS = [
+  { key: "presentation", label: "Presentation" },
+  { key: "demo", label: "Demo" },
+  { key: "report", label: "Report" },
+  { key: "documentation", label: "Documentation" },
+];
 
 const STATUS_HINTS = {
   backlog: "Seems Empty, add a Task?",
@@ -76,12 +85,12 @@ function TypeMark({ type, size = 13 }) {
   );
 }
 
-function TaskCard({ task, justHandedOff, onEdit, onStatusChange, onDelete, onCopy, onHandOff }) {
+function TaskCard({ task, justHandedOff, onEdit, onStatusChange, onDelete, onCopy, onHandOff, onViewContext, onDragStart }) {
   const dueState = getDueState(task);
   const [showMenu, setShowMenu] = useState(false);
 
   return (
-    <article className={classNames("task-card task-card-clickable", `type-${typeKey(task.type)}`, justHandedOff && "task-card-handed-off")} role="button" tabIndex={0} aria-label={`Edit task: ${task.title}`} onClick={() => onEdit(task)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onEdit(task); } }}>
+    <article draggable className={classNames("task-card task-card-clickable", `type-${typeKey(task.type)}`, justHandedOff && "task-card-handed-off")} role="button" tabIndex={0} aria-label={`Edit task: ${task.title}`} onDragStart={(event) => { if (event.target.closest("button, select, input, textarea")) { event.preventDefault(); return; } event.dataTransfer.setData("text/plain", String(task.id)); event.dataTransfer.effectAllowed = "move"; onDragStart(task.id); }} onClick={() => onEdit(task)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onEdit(task); } }}>
       <div className="task-card-top">
         <TypeMark type={task.type} />
         <div className="card-menu-wrap">
@@ -92,7 +101,7 @@ function TaskCard({ task, justHandedOff, onEdit, onStatusChange, onDelete, onCop
             <div className="card-menu" onClick={(event) => event.stopPropagation()}>
               <button onClick={() => { onEdit(task); setShowMenu(false); }}>Edit task</button>
               <button onClick={() => { onHandOff(task); setShowMenu(false); }}>Hand off to…</button>
-              <button onClick={() => { onCopy(task); setShowMenu(false); }}>Copy prompt context</button>
+              <button onClick={() => { onCopy(task); setShowMenu(false); }}>Copy Context</button>
               <button className="danger-menu-item" onClick={() => { onDelete(task); setShowMenu(false); }}>Delete task</button>
             </div>
           )}
@@ -129,6 +138,25 @@ function TaskCard({ task, justHandedOff, onEdit, onStatusChange, onDelete, onCop
         </span>
       </div>
 
+      <div className="task-card-actions">
+        <button
+          type="button"
+          className="view-context-button"
+          onClick={(event) => { event.stopPropagation(); onViewContext(task); }}
+          aria-label={`View context for ${task.title}`}
+        >
+          <Eye size={13} aria-hidden="true" /> View Context
+        </button>
+        <button
+          type="button"
+          className="copy-context-button"
+          onClick={(event) => { event.stopPropagation(); onCopy(task); }}
+          aria-label={`Copy Context for ${task.title}`}
+        >
+          <Copy size={13} aria-hidden="true" /> Copy Context
+        </button>
+      </div>
+
       {(task.usefulPrompt || task.result) && (
         <div className="task-notes-indicator">
           {task.usefulPrompt && <span><Sparkles size={12} /> Prompt saved</span>}
@@ -146,12 +174,35 @@ function TaskCard({ task, justHandedOff, onEdit, onStatusChange, onDelete, onCop
   );
 }
 
-function TaskModal({ initialTask, onClose, onSave }) {
+const CONTEXT_TEMPLATE = "Background:\n\nConstraints:\n\nTried so far:\n\nPick up from here:";
+
+function formatRelativeUpdatedAt(value) {
+  if (!value) return "Not updated yet";
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "Not updated yet";
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (seconds < 60) return "Last updated just now";
+  if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60);
+    return `Last updated ${minutes} min${minutes === 1 ? "" : "s"} ago`;
+  }
+  if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600);
+    return `Last updated ${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+  const days = Math.floor(seconds / 86400);
+  return `Last updated ${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function TaskModal({ initialTask, onClose, onSave, onCopy }) {
   const [form, setForm] = useState(() => initialTask ? {
     ...EMPTY_FORM,
     ...initialTask,
+    context: initialTask.context ?? "",
+    contextTool: initialTask.contextTool ?? "",
+    contextUpdatedAt: initialTask.contextUpdatedAt ?? "",
     tagsText: (initialTask.tags || []).join(", ")
-  } : { ...EMPTY_FORM });
+  } : { ...EMPTY_FORM, context: CONTEXT_TEMPLATE });
   const [error, setError] = useState("");
 
   const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
@@ -165,6 +216,9 @@ function TaskModal({ initialTask, onClose, onSave }) {
     const tags = form.tagsText.split(",").map((tag) => tag.trim()).filter(Boolean);
     onSave({
       ...form,
+      context: (form.context || "").trim(),
+      contextTool: form.contextTool || "",
+      contextUpdatedAt: form.contextUpdatedAt || "",
       title: form.title.trim(),
       description: form.description.trim(),
       owner: form.owner.trim(),
@@ -250,6 +304,39 @@ function TaskModal({ initialTask, onClose, onSave }) {
             <input id="task-tags" value={form.tagsText || ""} onChange={(event) => update("tagsText", event.target.value)} placeholder="frontend, auth, research" />
           </div>
 
+          <section className="context-section" aria-labelledby="task-context-heading">
+            <div className="context-section-heading">
+              <div>
+                <h3 id="task-context-heading">Context</h3>
+                <p>Carry the important project details into any AI tool and pick up where you left off.</p>
+              </div>
+              <span className="context-updated" aria-live="polite">{formatRelativeUpdatedAt(form.contextUpdatedAt)}</span>
+            </div>
+            <div className="form-field">
+              <label htmlFor="task-context">Task context <span className="label-hint">Markdown supported</span></label>
+              <textarea
+                id="task-context"
+                className="context-textarea"
+                rows="7"
+                value={form.context ?? ""}
+                onChange={(event) => setForm((current) => ({
+                  ...current,
+                  context: event.target.value,
+                  contextUpdatedAt: new Date().toISOString()
+                }))}
+                placeholder={CONTEXT_TEMPLATE}
+              />
+              <span className="context-help">Keep background, constraints, what you've tried, and the next step here.</span>
+            </div>
+            <div className="form-field context-tool-field">
+              <label htmlFor="task-context-tool">AI tool <span className="label-hint">optional</span></label>
+              <select id="task-context-tool" value={form.contextTool || ""} onChange={(event) => update("contextTool", event.target.value)}>
+                <option value="">Not specified</option>
+                {["Claude", "ChatGPT", "Cursor", "Lovable", "Replit", "Other"].map((tool) => <option value={tool} key={tool}>{tool}</option>)}
+              </select>
+            </div>
+          </section>
+
           <div className="form-field">
             <label htmlFor="task-prompt">Useful prompt</label>
             <textarea id="task-prompt" rows="4" value={form.usefulPrompt || ""} onChange={(event) => update("usefulPrompt", event.target.value)} placeholder="Save the prompt that produced a useful direction or result..." />
@@ -261,10 +348,81 @@ function TaskModal({ initialTask, onClose, onSave }) {
           </div>
 
           <footer className="modal-actions">
+            <button type="button" className="button button-secondary" onClick={() => onCopy({ ...form, tags: (form.tagsText || "").split(",").map((tag) => tag.trim()).filter(Boolean) })}><Copy size={15} />Copy Context</button>
+            <div className="modal-actions-spacer" />
             <button type="button" className="button button-secondary" onClick={onClose}>Cancel</button>
             <button type="submit" className="button button-primary"><Check size={16} />{initialTask ? "Save changes" : "Add task"}</button>
           </footer>
         </form>
+      </section>
+    </div>
+  );
+}
+
+function renderInlineMarkdown(text) {
+  const parts = String(text).split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith('`') && part.endsWith('`')) return <code key={index}>{part.slice(1, -1)}</code>;
+    if (part.startsWith('**') && part.endsWith('**')) return <strong key={index}>{part.slice(2, -2)}</strong>;
+    if ((part.startsWith('*') && part.endsWith('*')) || (part.startsWith('_') && part.endsWith('_'))) return <em key={index}>{part.slice(1, -1)}</em>;
+    return part;
+  });
+}
+
+function MarkdownPreview({ content }) {
+  const lines = String(content || '').replace(/\r\n?/g, '\n').split('\n');
+  const blocks = [];
+  let paragraph = [];
+  let list = [];
+  let code = [];
+  let inCode = false;
+  const flushParagraph = () => {
+    if (paragraph.length) { blocks.push(<p key={`p-${blocks.length}`}>{paragraph.map(renderInlineMarkdown).reduce((acc, item, i) => i ? [...acc, ' ', item] : [item], [])}</p>); paragraph = []; }
+  };
+  const flushList = () => {
+    if (list.length) { blocks.push(<ul key={`ul-${blocks.length}`}>{list.map((item, i) => <li key={i}>{renderInlineMarkdown(item)}</li>)}</ul>); list = []; }
+  };
+  lines.forEach((line, index) => {
+    if (line.trim().startsWith('```')) {
+      flushParagraph(); flushList();
+      if (inCode) { blocks.push(<pre key={`code-${blocks.length}`}><code>{code.join('\n')}</code></pre>); code = []; }
+      inCode = !inCode; return;
+    }
+    if (inCode) { code.push(line); return; }
+    if (!line.trim()) { flushParagraph(); flushList(); return; }
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      flushParagraph(); flushList();
+      const level = heading[1].length;
+      const text = renderInlineMarkdown(heading[2]);
+      blocks.push(level === 1 ? <h1 key={`h-${index}`}>{text}</h1> : level === 2 ? <h2 key={`h-${index}`}>{text}</h2> : <h3 key={`h-${index}`}>{text}</h3>);
+      return;
+    }
+    const bullet = line.match(/^\s*[-*+]\s+(.+)$/);
+    const numbered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (bullet || numbered) { flushParagraph(); list.push((bullet || numbered)[1]); return; }
+    flushList(); paragraph.push(line.trim());
+  });
+  flushParagraph(); flushList();
+  if (inCode && code.length) blocks.push(<pre key={`code-${blocks.length}`}><code>{code.join('\n')}</code></pre>);
+  return <div className="markdown-preview">{blocks.length ? blocks : <p className="markdown-empty">No context has been added to this task yet.</p>}</div>;
+}
+
+function ContextPreviewModal({ task, onClose, onCopy }) {
+  const markdown = buildPromptContext(task);
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="context-preview-modal" role="dialog" aria-modal="true" aria-labelledby="context-preview-title">
+        <header className="context-preview-header">
+          <div><p className="eyebrow">TASK CONTEXT</p><h2 id="context-preview-title">Markdown preview</h2><p>Review the briefing exactly as a Markdown document before copying it into an AI chat.</p></div>
+          <button className="icon-button" onClick={onClose} aria-label="Close context preview"><X size={19} /></button>
+        </header>
+        <div className="context-preview-body"><MarkdownPreview content={markdown} /></div>
+        <footer className="modal-actions context-preview-actions">
+          <button className="button button-secondary" onClick={() => onCopy(task)}><Copy size={15} />Copy Context</button>
+          <div className="modal-actions-spacer" />
+          <button className="button button-primary" onClick={onClose}>Close preview</button>
+        </footer>
       </section>
     </div>
   );
@@ -323,11 +481,17 @@ function DeleteModal({ task, onCancel, onConfirm }) {
 
 export default function App() {
   const [tasks, setTasks] = useState([]);
+  const [deliverables, setDeliverables] = useState(() => DELIVERABLE_DEFINITIONS.map(item => ({ ...item, url: "" })));
+  const [deliverablesLoading, setDeliverablesLoading] = useState(true);
+  const [savingDeliverable, setSavingDeliverable] = useState({});
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState("");
   const [modalTask, setModalTask] = useState(undefined);
   const [deleteTask, setDeleteTask] = useState(null);
   const [handoffTask, setHandoffTask] = useState(null);
+  const [contextPreviewTask, setContextPreviewTask] = useState(null);
+  const [draggingTaskId, setDraggingTaskId] = useState(null);
+  const [dropTargetStatus, setDropTargetStatus] = useState(null);
   const [handedOffId, setHandedOffId] = useState(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -338,6 +502,10 @@ export default function App() {
     loadTasks().then((items) => { if (active) { setTasks(items); setApiError(""); } })
       .catch((error) => { if (active) setApiError(`Cannot connect to the Citrus API. Start the app with npm run dev. (${error.message})`); })
       .finally(() => { if (active) setLoading(false); });
+    loadDeliverables().then((items) => {
+      if (active) setDeliverables(DELIVERABLE_DEFINITIONS.map(definition => ({ ...definition, ...(items.find(item => item.key === definition.key) || { url: "" }) })));
+    }).catch((error) => { if (active) setApiError(`Could not load project deliverables: ${error.message}`); })
+      .finally(() => { if (active) setDeliverablesLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -345,7 +513,7 @@ export default function App() {
     const query = search.trim().toLowerCase();
     return tasks.filter((task) => {
       const matchesType = typeFilter === "all" || task.type === typeFilter;
-      const haystack = [task.title, task.description, task.milestone, task.owner, task.usefulPrompt, task.result, ...(task.tags || [])].join(" ").toLowerCase();
+      const haystack = [task.title, task.description, task.milestone, task.owner, task.usefulPrompt, task.result, task.context, task.contextTool, ...(task.tags || [])].join(" ").toLowerCase();
       return matchesType && (!query || haystack.includes(query));
     });
   }, [tasks, search, typeFilter]);
@@ -360,6 +528,25 @@ export default function App() {
   function showToast(message) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2400);
+  }
+
+  function editDeliverable(key, url) {
+    setDeliverables(current => current.map(item => item.key === key ? { ...item, url } : item));
+  }
+
+  async function saveDeliverable(key) {
+    const current = deliverables.find(item => item.key === key);
+    if (!current) return;
+    setSavingDeliverable(state => ({ ...state, [key]: true }));
+    try {
+      const saved = await saveDeliverableRequest(key, current.url);
+      setDeliverables(items => items.map(item => item.key === key ? { ...item, ...saved } : item));
+      setApiError("");
+    } catch (error) {
+      setApiError(`Could not save ${key}: ${error.message}`);
+    } finally {
+      setSavingDeliverable(state => ({ ...state, [key]: false }));
+    }
   }
 
   async function saveTask(form) {
@@ -446,6 +633,33 @@ export default function App() {
           <button className="button button-primary mobile-add" onClick={() => setModalTask("new")}><Plus size={17} />Add Task...</button>
         </section>
 
+        <section className="deliverables-section" aria-labelledby="deliverables-heading">
+          <div className="deliverables-heading-row">
+            <div>
+              <p className="eyebrow">PROJECT DELIVERABLES</p>
+              <h2 id="deliverables-heading">Deliverable anchor</h2>
+            </div>
+            <span className="deliverables-caption">Pinned for quick access</span>
+          </div>
+          <div className="deliverables-grid">
+            {DELIVERABLE_DEFINITIONS.map(definition => {
+              const item = deliverables.find(deliverable => deliverable.key === definition.key) || { url: "" };
+              const filled = Boolean(item.url.trim());
+              return <article className="deliverable-card" key={definition.key}>
+                <div className="deliverable-card-title">
+                  <span className={classNames("deliverable-status-dot", filled && "is-filled")} aria-label={filled ? "Link saved" : "No link saved"} />
+                  <h3>{definition.label}</h3>
+                  <span className="deliverable-status-text">{savingDeliverable[definition.key] ? "Saving…" : filled ? "Linked" : "Empty"}</span>
+                </div>
+                <label className="deliverable-url-label" htmlFor={`deliverable-${definition.key}`}>URL</label>
+                <input id={`deliverable-${definition.key}`} className="deliverable-url-input" type="url" inputMode="url" placeholder="https://…" value={item.url} onChange={event => editDeliverable(definition.key, event.target.value)} onBlur={() => saveDeliverable(definition.key)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} aria-describedby={`deliverable-hint-${definition.key}`} />
+                <p id={`deliverable-hint-${definition.key}`} className="deliverable-hint">{deliverablesLoading ? "Loading saved link…" : "Saves when you leave this field"}</p>
+                {filled && <a className="deliverable-open-link" href={item.url} target="_blank" rel="noreferrer">Open link <ChevronDown size={13} /></a>}
+              </article>;
+            })}
+          </div>
+        </section>
+
         <section className="summary-grid" aria-label="Project summary">
           <div className="summary-card"><span className="summary-label">All tasks</span><strong>{stats.total}</strong><Layers3 size={18} /></div>
           <div className="summary-card"><span className="summary-label">In progress</span><strong>{stats.active}</strong><Clock3 size={18} /></div>
@@ -478,7 +692,7 @@ export default function App() {
           {TASK_STATUSES.map((status) => {
             const columnTasks = filteredTasks.filter((task) => task.status === status.value);
             return (
-              <section className={`kanban-column column-${status.value}`} key={status.value} aria-labelledby={`heading-${status.value}`}>
+              <section className={classNames("kanban-column", `column-${status.value}`, dropTargetStatus === status.value && "kanban-column-drop-target")} key={status.value} aria-labelledby={`heading-${status.value}`} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDropTargetStatus(status.value); }} onDragEnter={(event) => { event.preventDefault(); setDropTargetStatus(status.value); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDropTargetStatus((current) => current === status.value ? null : current); }} onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData("text/plain") || draggingTaskId; setDropTargetStatus(null); setDraggingTaskId(null); const task = tasks.find((item) => String(item.id) === String(id)); if (task && task.status !== status.value) updateStatus(task.id, status.value); }}>
                 <header className="column-header">
                   <div className="column-title">
                     <span className={`column-dot dot-${status.value}`} />
@@ -489,7 +703,7 @@ export default function App() {
                 </header>
                 <div className="column-body">
                   {columnTasks.length ? columnTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} onEdit={setModalTask} onStatusChange={updateStatus} onDelete={setDeleteTask} onCopy={copyContext} onHandOff={setHandoffTask} justHandedOff={handedOffId === task.id} />
+                    <TaskCard key={task.id} task={task} onEdit={setModalTask} onStatusChange={updateStatus} onDelete={setDeleteTask} onCopy={copyContext} onHandOff={setHandoffTask} onViewContext={setContextPreviewTask} onDragStart={setDraggingTaskId} justHandedOff={handedOffId === task.id} />
                   )) : (
                     <div className="empty-column">
                       <span className="empty-icon"><Layers3 size={17} /></span>
@@ -514,8 +728,10 @@ export default function App() {
           initialTask={modalTask === "new" ? null : modalTask}
           onClose={() => setModalTask(undefined)}
           onSave={saveTask}
+          onCopy={copyContext}
         />
       )}
+      {contextPreviewTask && <ContextPreviewModal task={contextPreviewTask} onClose={() => setContextPreviewTask(null)} onCopy={copyContext} />}
       {handoffTask && <HandoffModal key={handoffTask.id} task={handoffTask} people={people} onCancel={() => setHandoffTask(null)} onConfirm={(name) => handOff(handoffTask, name)} />}
       {deleteTask && <DeleteModal task={deleteTask} onCancel={() => setDeleteTask(null)} onConfirm={confirmDelete} />}
       {toast && <div className="toast" role="status"><Check size={16} />{toast}</div>}

@@ -41,6 +41,9 @@ export function createTask(overrides = {}) {
     tags: [],
     usefulPrompt: "",
     result: "",
+    context: "",
+    contextTool: "",
+    contextUpdatedAt: "",
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -85,12 +88,15 @@ export function formatDueDate(dateString) {
 }
 
 export function buildPromptContext(task) {
+  const title = String(task?.title || "Untitled task").trim();
+  const description = String(task?.description || "").trim();
+  const context = String(task?.context || "").trim();
+  const tool = String(task?.contextTool || "").trim();
+
   return [
-    `Project task: ${task.title}`,
-    task.description ? `Description: ${task.description}` : "",
-    task.milestone ? `Milestone: ${task.milestone}` : "",
-    task.usefulPrompt ? `Useful prompt:\n${task.usefulPrompt}` : "",
-    task.result ? `Recorded result:\n${task.result}` : "",
-    task.tags?.length ? `Tags: ${task.tags.join(", ")}` : "",
+    `# ${title}`,
+    description ? `## Description\n${description}` : "",
+    `## Context\n${context || "No additional context has been recorded yet."}`,
+    tool ? `AI tool: ${tool}` : "",
   ].filter(Boolean).join("\n\n");
 }
