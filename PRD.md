@@ -16,7 +16,7 @@ A spreadsheet doesn't solve this. A real project tool (Linear, Jira, Notion) is 
 ## 2. Target users
 
 - **Primary:** the team members, for the remaining weeks of the summer semester.
-- **Secondary:** future cohorts of vibecoders taking the same class.
+- **Secondary:** future cohorts  of vibecoders taking the same class.
 
 We are designing the tool we ourselves will use. The pitch demo is also our first real user test.
 
