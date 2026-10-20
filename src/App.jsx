@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle, ArrowUpRight, CalendarDays, Check, ChevronDown, CircleHelp,
-  Clipboard, Clock3, Code2, Copy, Flag, Layers3, Plus, Search, Sparkles,
-  Tag, Trash2, X
+  AlertCircle, Bug, CalendarDays, Check, ChevronDown, Clock3, Flag, Layers3,
+  Lightbulb, Plus, Search, Sparkles, Tag, Telescope, Trash2, X
 } from "lucide-react";
 import {
   buildPromptContext, createTask, formatDueDate, getDueState,
@@ -36,13 +35,21 @@ function dueClass(state) {
   }[state] || "due-none";
 }
 
-function TypeMark({ type }) {
-  const icon = type === "bug" ? <AlertCircle size={13} /> :
-    type === "research" ? <CircleHelp size={13} /> :
-    type === "prompt" ? <Sparkles size={13} /> : <Code2 size={13} />;
+// Single source of truth for task-type icons. Colours live in index.css
+// (.type-feature, .type-bug, ...) and are shared by every place a type shows.
+const TYPE_ICONS = { feature: Lightbulb, bug: Bug, research: Telescope, prompt: Sparkles };
+
+function typeKey(type) {
+  return TYPE_ICONS[type] ? type : "feature";
+}
+
+function TypeMark({ type, size = 13 }) {
+  const key = typeKey(type);
+  const Icon = TYPE_ICONS[key];
   return (
-    <span className={classNames("type-mark", `type-${type}`)}>
-      {icon}<span>{TASK_TYPES.find((item) => item.value === type)?.label || "Feature"}</span>
+    <span className={classNames("type-mark", `type-${key}`)}>
+      <Icon size={size} aria-hidden="true" />
+      <span>{TASK_TYPES.find((item) => item.value === key)?.label}</span>
     </span>
   );
 }
@@ -52,7 +59,7 @@ function TaskCard({ task, onEdit, onStatusChange, onDelete, onCopy }) {
   const [showMenu, setShowMenu] = useState(false);
 
   return (
-    <article className="task-card task-card-clickable" role="button" tabIndex={0} aria-label={`Edit task: ${task.title}`} onClick={() => onEdit(task)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onEdit(task); } }}>
+    <article className={classNames("task-card task-card-clickable", `type-${typeKey(task.type)}`)} role="button" tabIndex={0} aria-label={`Edit task: ${task.title}`} onClick={() => onEdit(task)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onEdit(task); } }}>
       <div className="task-card-top">
         <TypeMark type={task.type} />
         <div className="card-menu-wrap">
@@ -145,10 +152,13 @@ function TaskModal({ initialTask, onClose, onSave }) {
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="task-modal" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
+      <section className={classNames("task-modal", `type-${typeKey(form.type)}`)} role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
         <header className="modal-header">
           <div>
-            <p className="eyebrow">{initialTask ? "UPDATE YOUR WORK" : "MAKE PROGRESS"}</p>
+            <div className="modal-type-row">
+              <TypeMark type={form.type} />
+              <p className="eyebrow">{initialTask ? "UPDATE YOUR WORK" : "MAKE PROGRESS"}</p>
+            </div>
             <h2 id="task-modal-title">{initialTask ? "Edit task" : "Add Task..."}</h2>
             <p className="modal-subtitle">Keep the goal, useful prompts and results together.</p>
           </div>
@@ -174,7 +184,7 @@ function TaskModal({ initialTask, onClose, onSave }) {
                 {TASK_STATUSES.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
               </select>
             </div>
-            <div className="form-field">
+            <div className={classNames("form-field", "type-field", `type-${typeKey(form.type)}`)}>
               <label htmlFor="task-type">Task type</label>
               <select id="task-type" value={form.type} onChange={(event) => update("type", event.target.value)}>
                 {TASK_TYPES.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
@@ -241,6 +251,7 @@ function DeleteModal({ task, onCancel, onConfirm }) {
       <section className="confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
         <div className="confirm-icon"><Trash2 size={21} /></div>
         <h2 id="delete-title">Delete this task?</h2>
+        <TypeMark type={task.type} />
         <p>Confirm deletion, it cannot be undone... <strong>{task.title}</strong></p>
         <div className="modal-actions">
           <button className="button button-secondary" onClick={onCancel}>Keep task</button>
