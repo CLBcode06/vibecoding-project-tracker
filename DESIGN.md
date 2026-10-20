@@ -61,9 +61,9 @@ These are the colors the build milestones will reference. Once chosen, paste the
 
 | Role | Font | Why |
 |---|---|---|
-| Heading | `Inter` | `<TODO one sentence>` |
-| Body | `Inter` | `<TODO one sentence>` |
-| Monospace (tags, badges, code) | `JetBrains Mono` | `<TODO one sentence>` |
+| Heading | `Inter` | `Inter is widely regarded as one of the best sans-serif typefaces for user interfaces, optimized specifically for computer screens to maximize legibility across varying weights.` |
+| Body | `Inter` | `Inter is widely regarded as one of the best sans-serif typefaces for user interfaces, optimized specifically for computer screens to maximize legibility across varying weights.` |
+| Monospace (tags, badges, code) | `JetBrains Mono` | `JetBrains Mono provides clear differentiation between similar-looking characters (such as 0 and O), making it ideal for compact metadata, tags, and code snippets in a busy kanban interface.` |
 
 Suggested sizes (override only if the design demands it):
 
